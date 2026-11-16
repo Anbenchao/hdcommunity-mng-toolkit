@@ -24,7 +24,7 @@ npx --yes hdcommunity-mng-toolkit uninstall --target opencode
 | 面 | 工具前缀 | 鉴权 |
 |---|---|---|
 | 博客管理台 | `hdcommunity_admin_*` | 内部账号登录 → Bearer（`/manage/auth/login`） |
-| 成长中心管理台 | `hdgrow_admin_*` | 同上（登录 `/manage/auth/*`，接口 `/agent/admin/grow/**`） |
+| 成长中心管理台 | `hdgrow_admin_*` | 同上（登录 `/manage/auth/*`，接口 `/agent/admin/grow/**` 与 `/manage/**`；任务分类走只读 `/agent/show/grow/task/categories`） |
 | 成长中心业务侧 | `hdgrow_*`（points/task/prize/发券） | 华为云 **AK/SK**（`HW_ACCESS_KEY`/`HW_SECRET_KEY`），与管理员登录无关 |
 | 内容风控 | `hdcommunity_admin_blog_risk_check` | 无（本地词库） |
 
@@ -37,8 +37,8 @@ npx --yes hdcommunity-mng-toolkit uninstall --target opencode
 ### 博客管理台 `hdcommunity_admin_*`
 登录/注销、`blog_page`/`blog_detail`/`blog_review`/`blog_review_batch`、`blog_online`/`blog_top`/`blog_records`、`comment_page`/`comment_review`/`comment_review_batch`/`comment_online`、`stats`。
 
-### 成长中心管理台 `hdgrow_admin_*`（20）
-登录/注销；变更单 `change_create|commit|approve|apply|revert|get|page`；`task_page|_get`、`prize_page|_get`、`whitelist_page`；记录审计 `record_points|_exchange|_issue|_job`、`user_page`；`stats`。
+### 成长中心管理台 `hdgrow_admin_*`（34）
+登录/注销；变更单 `change_create|commit|approve|apply|revert|cancel|archive|get|page`；`task_page|_get`、`task_categories`、`prize_page|_get`、`whitelist_page`；记录审计 `record_points|_exchange|_issue|_job`、`user_page`、`user_block`/`user_unblock`；积分补发 `reissue_create|_page|_get|_approve|_issue`；首个自然人 `natural_person_page|_get|_approve|_reject`；`stats`。
 
 ### 成长中心业务侧 `hdgrow_*`（6，AK/SK）
 查询：`points_query`（查积分）、`server_tasks`（带个人完成状态）、`server_prizes`；
@@ -48,6 +48,12 @@ npx --yes hdcommunity-mng-toolkit uninstall --target opencode
 ### 内容风控
 `hdcommunity_admin_blog_risk_check`（本地词库；审核时自动附带，标记风险不阻断）。
 
+## 写操作两步确认（强制）
+
+所有新建/修改/删除工具默认 `dry_run=true`：只返回 `preview` + 一次性 `preview_confirm_token`，不写任何数据。
+流程：调用（默认预览）→ 把 preview 展示给用户并等回复[确认] → 用相同参数 + `dry_run:false` + `preview_confirm_token` 再调用一次才执行。
+令牌 5 分钟有效、一次性、绑定参数；`change_create` 的预览走后端 `POST /manage/change-request/preview`（不产生草案）。
+
 ## 配置（环境变量）
 
 | 变量 | 默认 | 说明 |
@@ -56,6 +62,7 @@ npx --yes hdcommunity-mng-toolkit uninstall --target opencode
 | `HDGROW_BASE` | **必填（无默认）** | 成长服务地址，如 `https://<网关>/api/v1/hdgrowservice`；未配置 → `CONFIG_MISSING` |
 | `HDCOMMUNITY_ADMIN_USER` / `HDCOMMUNITY_ADMIN_PASS` | 空 | 管理台账号（401 自动重登用） |
 | `HDGROW_RISK_FACE_AMOUNT_MAX` / `HDGROW_RISK_QUANTITY_MAX` | `100` / `10` | 涉钱高风险阈值（业务侧写入） |
+| `HDCOMMUNITY_CONFIRM_TTL_MS` | `300000`（5 分钟） | 写操作预览令牌 `preview_confirm_token` 的有效期 |
 
 > 在 Agent 的 MCP 配置里通过 `env` 传入。
 

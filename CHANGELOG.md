@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Changed — 写操作两步确认（防误操作）
+- 所有新建/修改/删除工具默认 `dry_run=true`：只返回 `preview` + 一次性 `preview_confirm_token`，用户回复[确认]后以相同参数 + `dry_run:false` + 令牌执行。
+- `change_create` 预览走后端 `POST /manage/change-request/preview`（不落库、不产生草案）；令牌 TTL 5 分钟、一次性、绑定参数。
+- 覆盖范围：变更单 create/commit/approve/apply/revert/cancel/archive、补发 create/approve/issue、首个自然人 approve/reject、用户 block/unblock、博客审核/上下线/置顶、评论审核/上下线（含批量）。
+
+### Added — 成长中心管理台（P1）
+- 变更单：`hdgrow_admin_change_cancel` / `_archive`。
+- 积分补发：`reissue_create|_page|_get|_approve|_issue`（approve/issue 需 approver/admin，审核人不得等于提交人；`reissue_issue` 必须显式 `confirm:true`）。
+- 首个自然人变更申请：`natural_person_page|_get|_approve|_reject`（approver/admin，驳回原因必填）。
+- 用户黑名单：`hdgrow_admin_user_block`（原因 ≤512 字）/ `_unblock`。
+- 任务分类：`hdgrow_admin_task_categories`（只读，建任务取 `category_id`）。
+
+### Changed — 查询筛选对齐管理台
+- 审计工具 `record_points|_exchange|_issue|_job` 增加 `keyword`；`user_page` 增加 `keyword` 与 `blocked`；`change_page` 增加 `include_archived`。
+
 ## 0.3.0
 
 ### Added — 错误可观测性
