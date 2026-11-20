@@ -29,7 +29,7 @@ let savedEnv;
 
 beforeEach(() => {
   box = mkdtempSync(join(tmpdir(), 'hdmng-dsh-patch-'));
-  savedEnv = { DSH_HOME: process.env.DSH_HOME, DSH_PROFILE: process.env.DSH_PROFILE, HDCOMMUNITY_BASE: process.env.HDCOMMUNITY_BASE };
+  savedEnv = { DSH_HOME: process.env.DSH_HOME, DSH_PROFILE: process.env.DSH_PROFILE, HDCOMMUNITY_BASE: process.env.HDCOMMUNITY_BASE, HDGROW_BASE: process.env.HDGROW_BASE };
   for (const key of Object.keys(savedEnv)) delete process.env[key];
 });
 
@@ -70,6 +70,7 @@ describe('paths and rendering', () => {
     assert.match(text, /command: npx/);
     assert.match(text, /args: \['-y', '-p', 'hdcommunity-mng-toolkit', 'hdcommunity-mng-toolkit-mcp'\]/);
     assert.match(text, /HDCOMMUNITY_BASE: 'https:\/\/example\.test\/api\/v1\/blogservice'/);
+    assert.match(text, /HDGROW_BASE: 'https:\/\/grow-dataset\.developer\.huaweicloud\.com\/api\/v1\/hdgrowservice'/);
   });
 
   test('uses the production default when HDCOMMUNITY_BASE is unset and env when set', () => {
@@ -77,6 +78,11 @@ describe('paths and rendering', () => {
     process.env.HDCOMMUNITY_BASE = 'http://127.0.0.1:8080/api/v1/blogservice';
     assert.equal(dshBackendBase(), 'http://127.0.0.1:8080/api/v1/blogservice');
     assert.match(renderDshPatchEntry(), /HDCOMMUNITY_BASE: 'http:\/\/127\.0\.0\.1:8080\/api\/v1\/blogservice'/);
+  });
+
+  test('renders HDGROW_BASE from env when set', () => {
+    process.env.HDGROW_BASE = 'http://127.0.0.1:8080/api/v1/hdgrowservice';
+    assert.match(renderDshPatchEntry(), /HDGROW_BASE: 'http:\/\/127\.0\.0\.1:8080\/api\/v1\/hdgrowservice'/);
   });
 
   test('single-quotes YAML scalars and escapes embedded quotes', () => {

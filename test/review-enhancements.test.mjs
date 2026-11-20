@@ -152,9 +152,9 @@ test('B2: review_batch dry_run with filter previews ids + summaries, writes noth
   );
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(r.data.dry_run, true);
-  assert.equal(r.data.affected, 3);
-  assert.equal(r.data.items.length, 3);
-  for (const it of r.data.items) {
+  assert.equal(r.data.preview.affected, 3);
+  assert.equal(r.data.preview.items.length, 3);
+  for (const it of r.data.preview.items) {
     assert.ok(Number.isInteger(it.id));
     assert.ok(typeof it.title === 'string');
   }
@@ -168,14 +168,17 @@ test('B2: filter by author narrows the target set', async () => {
     { sessionId: 's3' },
   );
   assert.equal(r.ok, true);
-  assert.deepEqual(r.data.items.map((i) => i.id).sort(), [1, 3]);
+  assert.deepEqual(r.data.preview.items.map((i) => i.id).sort(), [1, 3]);
 });
 
 test('B3: review_batch returns per-id receipt; failed item is retried once and then succeeds', async () => {
   reviewCalls.length = 0;
+  const args = { ids: [1, 2, 999], action: 'approve' };
+  const p = await callTool('hdcommunity_admin_blog_review_batch', args, { sessionId: 's3' });
+  assert.equal(p.ok, true, JSON.stringify(p));
   const r = await callTool(
     'hdcommunity_admin_blog_review_batch',
-    { ids: [1, 2, 999], action: 'approve' },
+    { ...args, dry_run: false, preview_confirm_token: p.data.preview_confirm_token },
     { sessionId: 's3' },
   );
   assert.equal(r.ok, true, JSON.stringify(r));
@@ -191,9 +194,11 @@ test('B3: review_batch returns per-id receipt; failed item is retried once and t
 
 test('B3: permanently failing item is reported in the per-id receipt', async () => {
   reviewCalls.length = 0;
+  const args = { ids: [12345], action: 'reject', remark: '测试' };
+  const p = await callTool('hdcommunity_admin_blog_review_batch', args, { sessionId: 's3' });
   const r = await callTool(
     'hdcommunity_admin_blog_review_batch',
-    { ids: [12345], action: 'reject', remark: '测试' },
+    { ...args, dry_run: false, preview_confirm_token: p.data.preview_confirm_token },
     { sessionId: 's3' },
   );
   assert.equal(r.ok, true);
@@ -259,8 +264,8 @@ test('B2 fix: author filter keeps paginating when the current page has no matche
     { sessionId: 's3' },
   );
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.equal(r.data.affected, 60); // all alice items live on pages 2/3 — old code collected 0
-  assert.equal(r.data.truncated, undefined); // natural end (120 items < 500 cap)
+  assert.equal(r.data.preview.affected, 60); // all alice items live on pages 2/3 — old code collected 0
+  assert.equal(r.data.preview.truncated, undefined); // natural end (120 items < 500 cap)
 });
 
 test('B2 advisory: exceeding the 500-per-batch cap sets truncated + note in the receipt', async () => {
@@ -270,9 +275,9 @@ test('B2 advisory: exceeding the 500-per-batch cap sets truncated + note in the 
     { sessionId: 's3' },
   );
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.equal(r.data.affected, 500); // hard cap: 10 pages x 50
-  assert.equal(r.data.truncated, true);
-  assert.match(r.data.truncated_note, /500/);
+  assert.equal(r.data.preview.affected, 500); // hard cap: 10 pages x 50
+  assert.equal(r.data.preview.truncated, true);
+  assert.match(r.data.preview.truncated_note, /500/);
 });
 
 test('smoke regression: tool list includes the new detail tool', async () => {
