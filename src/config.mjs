@@ -23,11 +23,44 @@ export const DEFAULT_TIMEOUT_MS = Number(process.env.HDCOMMUNITY_TIMEOUT_MS || 3
 //   /agent/grow/**       business (AK/SK, per request)   -> callGrow
 //   /agent/admin/grow/** management (Bearer)             -> callGrowAdmin
 //
-// Base MUST be configured explicitly (shape: https://<gateway>/api/v1/hdgrowservice).
-// No default: growth has money-write tools, so we fail-fast instead of silently
-// hitting an environment（默认不再指向任何网关）。
+// 分支默认口径（强制）：
+//   develop -> 测试：opentest-dataset / opctest-dataset（本分支默认）
+//   main    -> 现网：open-dataset / grow-dataset
+// 不要把现网配置带进 develop。
 // ---------------------------------------------------------------------------
 
 export function growBase() {
-  return process.env.HDGROW_BASE || '';
+  return process.env.HDGROW_BASE || 'https://opctest-dataset.developer.huaweicloud.com/api/v1/hdgrowservice';
+}
+
+function hostOf(url) {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * Report which environment the current configuration points at, so write tools can
+ * show `env` in every preview (prevents mixing test/prod by accident).
+ * @returns {{env: 'test'|'prod'|'mixed'|'custom', blog_base: string, grow_base: string}}
+ */
+export function envInfo() {
+  const blogBase = BACKEND_BASE;
+  const growBaseUrl = growBase();
+  const blogHost = hostOf(blogBase);
+  const growHost = hostOf(growBaseUrl);
+  const blogTest = blogHost.startsWith('opentest-');
+  const growTest = growHost.startsWith('opctest-');
+  const blogProd = blogHost === 'open-dataset.huaweicloud.com';
+  const growProd = growHost === 'grow-dataset.developer.huaweicloud.com';
+  const testHits = Number(blogTest) + Number(growTest);
+  const prodHits = Number(blogProd) + Number(growProd);
+  const customHits = 2 - testHits - prodHits;
+  let env = 'mixed';
+  if (testHits === 2) env = 'test';
+  else if (prodHits === 2) env = 'prod';
+  else if (customHits === 2) env = 'custom';
+  return { env, blog_base: blogBase, grow_base: growBaseUrl };
 }

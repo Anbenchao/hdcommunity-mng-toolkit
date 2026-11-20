@@ -19,6 +19,8 @@ version: 1
 
 ## 两步确认（所有新建/修改/删除，强制）
 
+先调用 `hdgrow_admin_env` 确认当前指向（`test` / `prod` / `mixed` / `custom`）；每个预览也会带 `env`，**若为 `prod`，展示时必须明确标注“现网”**。
+
 所有写工具（change_*、reissue_*、natural_person_approve/reject、user_block/unblock）默认 `dry_run=true`：
 **只返回预览 + 一次性 `preview_confirm_token`，不写任何数据**。
 

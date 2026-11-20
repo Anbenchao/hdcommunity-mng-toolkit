@@ -18,6 +18,7 @@ import crypto from 'node:crypto';
 import { callGrow } from './http-client.mjs';
 import { GROW_BIZ } from './grow-endpoints.mjs';
 import { ok, fail, CODES } from '../errors.mjs';
+import { envInfo } from '../config.mjs';
 
 const P = {
   int: (d) => ({ type: 'integer', description: d }),
@@ -90,6 +91,7 @@ function consumeToken(token, body) {
 function moneyPreview(action, method, endpoint, body, money, hits, token, exp) {
   return {
     preview: true,
+    env: envInfo().env,
     action,
     method,
     endpoint,

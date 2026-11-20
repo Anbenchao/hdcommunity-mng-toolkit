@@ -9,6 +9,7 @@
 // arguments fingerprint (excluding dry_run / preview_confirm_token / token).
 
 import { createHash, randomUUID } from 'node:crypto';
+import { envInfo } from '../config.mjs';
 
 const TTL_MS = Number(process.env.HDCOMMUNITY_CONFIRM_TTL_MS || 5 * 60 * 1000);
 const pending = new Map(); // key `${sessionId}|${tool}` -> { token, fp, expiresAt }
@@ -35,11 +36,12 @@ export function issueConfirm(sessionId, tool, args, preview, meta) {
   pending.set(key, { token, fp: argsFingerprint(args), expiresAt: Date.now() + TTL_MS, meta });
   return {
     dry_run: true,
+    env: envInfo().env,
     tool,
     preview,
     preview_confirm_token: token,
     expires_in_seconds: Math.floor(TTL_MS / 1000),
-    next: '把 preview 展示给用户，等用户回复[确认]后，再用相同参数 + dry_run:false + preview_confirm_token 调用本工具',
+    next: '把 preview（含 env）展示给用户，等用户回复[确认]后，再用相同参数 + dry_run:false + preview_confirm_token 调用本工具',
   };
 }
 
