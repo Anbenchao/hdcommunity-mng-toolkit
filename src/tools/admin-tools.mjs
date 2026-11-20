@@ -11,11 +11,12 @@
 //   A3  hdcommunity_admin_blog_detail (direct backend detail API, degraded composition otherwise)
 
 import { callAdmin } from './http-client.mjs';
-import { loginAdminSession, logoutAdminSession } from './admin-session.mjs';
+import { loginBoth, logoutBoth } from './admin-session.mjs';
 import { getSession } from '../session.mjs';
 import { ok, fail, CODES } from '../errors.mjs';
 import { ADMIN_BLOG_DETAIL_PATH } from '../config.mjs';
 import { scanBlog, attachRiskCheck, summarizeBatchRisk } from './risk-control.mjs';
+import { CONFIRM_PROPS, issueConfirm, consumeConfirm, consumeConfirmMeta } from './confirm-gate.mjs';
 
 const P = {
   int: (description) => ({ type: 'integer', description }),
@@ -26,6 +27,46 @@ const P = {
 const TOKEN_PROP = {
   token: P.str('管理面 token（可选；缺省用当前会话登录态）'),
 };
+
+// All create/update/delete tools are two-step: dry-run preview -> user 确认 -> execute.
+async function runWithConfirm(ctx, tool, args, previewFn, execFn) {
+  if (args.dry_run !== false) {
+    const preview = await previewFn();
+    if (preview && preview.ok === false) return preview;
+    return ok(issueConfirm(ctx?.sessionId, tool, args, preview));
+  }
+  const err = consumeConfirm(ctx?.sessionId, tool, args, args.preview_confirm_token);
+  if (err) return fail(CODES.PARAM_ERROR, err);
+  return execFn();
+}
+
+async function blogPreview(ctx, a, action) {
+  const r = await callAdmin(ctx.sessionId, 'GET', ADMIN_BLOG_DETAIL_PATH.replace('{id}', encodeURIComponent(a.id)), {
+    query: { include_content: 0 },
+    token: a.token,
+  });
+  if (!r.ok) {
+    // A preview must never block the flow: if the detail API is missing or the caller is
+    // not logged in yet, still return an argument-level preview so the user can confirm.
+    return {
+      action,
+      id: a.id,
+      remark: a.remark,
+      online: a.online,
+      notice: `无法读取当前状态（${r.error?.code || 'ERROR'}），按参数预览`,
+    };
+  }
+  const d = r.data || {};
+  return {
+    action,
+    id: a.id,
+    title: d.title,
+    status: d.status,
+    online: d.online,
+    remark: a.remark,
+    content_preview: d.content_preview,
+  };
+}
 
 const REVIEW_BATCH_FILTER_PROP = {
   type: 'object',
@@ -331,6 +372,7 @@ export const ADMIN_TOOLS = {
           title: P.str('博客标题（可选；提供后审核前自动执行本地风控）'),
           content: P.str('博客正文（可选；提供后审核前自动执行本地风控）'),
           ...TOKEN_PROP,
+          ...CONFIRM_PROPS,
         },
       },
     },
@@ -354,8 +396,9 @@ export const ADMIN_TOOLS = {
               properties: { id: P.int('博客 id'), title: P.str('标题'), content: P.str('正文') },
             },
           },
-          dry_run: P.bool('仅预览将影响的条目（id + 摘要），不执行写操作，默认 false'),
+          dry_run: P.bool('默认 true=只预览将影响的条目（id + 摘要），不执行写操作；false=执行（需 confirm_token）'),
           ...TOKEN_PROP,
+          ...CONFIRM_PROPS,
         },
       },
     },
@@ -365,7 +408,7 @@ export const ADMIN_TOOLS = {
       inputSchema: {
         type: 'object',
         required: ['id', 'online'],
-        properties: { id: P.int('博客 id'), online: P.int('1 上线 / 0 下线'), ...TOKEN_PROP },
+        properties: { id: P.int('博客 id'), online: P.int('1 上线 / 0 下线'), ...TOKEN_PROP, ...CONFIRM_PROPS },
       },
     },
     {
@@ -374,7 +417,7 @@ export const ADMIN_TOOLS = {
       inputSchema: {
         type: 'object',
         required: ['id', 'top'],
-        properties: { id: P.int('博客 id'), top: P.int('1 置顶 / 0 取消'), ...TOKEN_PROP },
+        properties: { id: P.int('博客 id'), top: P.int('1 置顶 / 0 取消'), ...TOKEN_PROP, ...CONFIRM_PROPS },
       },
     },
     {
@@ -413,6 +456,7 @@ export const ADMIN_TOOLS = {
           action: { type: 'string', enum: ['approve', 'reject'] },
           remark: P.str('审核意见'),
           ...TOKEN_PROP,
+          ...CONFIRM_PROPS,
         },
       },
     },
@@ -428,8 +472,9 @@ export const ADMIN_TOOLS = {
           filter: REVIEW_BATCH_FILTER_PROP,
           action: { type: 'string', enum: ['approve', 'reject'] },
           remark: P.str('审核意见'),
-          dry_run: P.bool('仅预览将影响的条目（id + 摘要），不执行写操作，默认 false'),
+          dry_run: P.bool('默认 true=只预览将影响的条目（id + 摘要），不执行写操作；false=执行（需 confirm_token）'),
           ...TOKEN_PROP,
+          ...CONFIRM_PROPS,
         },
       },
     },
@@ -439,7 +484,7 @@ export const ADMIN_TOOLS = {
       inputSchema: {
         type: 'object',
         required: ['id', 'online'],
-        properties: { id: P.int('评论 id'), online: P.int('1 上线 / 0 下线'), ...TOKEN_PROP },
+        properties: { id: P.int('评论 id'), online: P.int('1 上线 / 0 下线'), ...TOKEN_PROP, ...CONFIRM_PROPS },
       },
     },
     {
@@ -452,10 +497,10 @@ export const ADMIN_TOOLS = {
   call: {
     'hdcommunity_admin_login': async (a, ctx) =>
       // 管理面登录：登录博客管理台并缓存令牌。
-      loginAdminSession(ctx.sessionId, a.username, a.password),
+      loginBoth(ctx.sessionId, a.username, a.password),
     'hdcommunity_admin_logout': async (_a, ctx) =>
       // 管理面注销：登出并清空缓存令牌。
-      logoutAdminSession(ctx.sessionId),
+      logoutBoth(ctx.sessionId),
     'hdcommunity_admin_blog_page': async (a, ctx) => {
       const r = await callAdmin(ctx.sessionId, 'GET', '/agent/admin/blog/page', {
         query: { page_no: a.page_no, page_size: a.page_size, status: a.status, online: a.online, keyword: a.keyword },
@@ -504,49 +549,85 @@ export const ADMIN_TOOLS = {
         '后端 /manage/blog/{id}/detail（A3）未就绪，当前为 MCP 层降级组合（分页定位正文 + 审核记录 + 客户端 risk_flags），后端上线后自动切换直连';
       return ok(detail);
     },
-    'hdcommunity_admin_blog_review': async (a, ctx) => {
-      // Risk control runs BEFORE the review call; mark-only, never blocks (Issue #3).
-      const r = await callAdmin(ctx.sessionId, 'POST', '/agent/admin/blog/review', {
-        body: { id: a.id, action: a.action, remark: a.remark },
-        token: a.token,
-      });
-      return attachRiskCheck(r, a.title, a.content);
-    },
+    'hdcommunity_admin_blog_review': async (a, ctx) =>
+      runWithConfirm(
+        ctx,
+        'hdcommunity_admin_blog_review',
+        a,
+        () => blogPreview(ctx, a, `审核博客（${a.action}）`),
+        async () => {
+          // Risk control runs BEFORE the review call; mark-only, never blocks (Issue #3).
+          const r = await callAdmin(ctx.sessionId, 'POST', '/agent/admin/blog/review', {
+            body: { id: a.id, action: a.action, remark: a.remark },
+            token: a.token,
+          });
+          return attachRiskCheck(r, a.title, a.content);
+        },
+      ),
     'hdcommunity_admin_blog_review_batch': async (a, ctx) => {
-      // B2/B3: ids OR filter + dry_run preview + per-id receipt with one automatic retry (Issue #4)
-      const r = await reviewBatch('blog', a, ctx);
-      // Issue #3: per-item mark-only risk checks (matched by id), aggregated summary.
-      const items = Array.isArray(a.items) ? a.items : [];
-      const ids = Array.isArray(a.ids) ? a.ids : [];
-      const byId = new Map(items.map((it) => [Number(it.id), it]));
-      let reports;
-      try {
-        reports = ids.map((id) => {
-          const it = byId.get(Number(id));
-          return it && (it.title || it.content) ? scanBlog(it.title, it.content) : null;
-        });
-      } catch {
-        reports = [];
+      const tool = 'hdcommunity_admin_blog_review_batch';
+      const run = async (dry, override) => {
+        // B2/B3: ids OR filter + dry_run preview + per-id receipt with one automatic retry (Issue #4)
+        const r = await reviewBatch('blog', { ...a, ...override, dry_run: dry }, ctx);
+        // Issue #3: per-item mark-only risk checks (matched by id), aggregated summary.
+        const items = Array.isArray(a.items) ? a.items : [];
+        const ids = Array.isArray(a.ids) ? a.ids : [];
+        const byId = new Map(items.map((it) => [Number(it.id), it]));
+        let reports;
+        try {
+          reports = ids.map((id) => {
+            const it = byId.get(Number(id));
+            return it && (it.title || it.content) ? scanBlog(it.title, it.content) : null;
+          });
+        } catch {
+          reports = [];
+        }
+        const checked = reports.filter(Boolean);
+        if (!checked.length) return r;
+        if (r && r.ok) {
+          r.data = { ...(r.data ?? {}), risk_check: { ...summarizeBatchRisk(checked), items: checked } };
+        } else if (r) {
+          r.risk_check = { ...summarizeBatchRisk(checked), items: checked };
+        }
+        return r;
+      };
+      if (a.dry_run !== false) {
+        const r = await run(true);
+        if (!r || r.ok === false) return r;
+        // Freeze the exact target set at preview time (filter re-evaluation could add items).
+        const ids = (Array.isArray(r.data?.items) ? r.data.items : []).map((it) => Number(it.id)).filter(Number.isFinite);
+        if (!ids.length) return r;
+        return ok(issueConfirm(ctx?.sessionId, tool, a, r.data ?? r, { ids }));
       }
-      const checked = reports.filter(Boolean);
-      if (!checked.length) return r;
-      if (r && r.ok) {
-        r.data = { ...(r.data ?? {}), risk_check: { ...summarizeBatchRisk(checked), items: checked } };
-      } else if (r) {
-        r.risk_check = { ...summarizeBatchRisk(checked), items: checked };
-      }
-      return r;
+      const { error, meta } = consumeConfirmMeta(ctx?.sessionId, tool, a, a.preview_confirm_token);
+      if (error) return fail(CODES.PARAM_ERROR, error);
+      const override = meta && Array.isArray(meta.ids) && meta.ids.length ? { ids: meta.ids, filter: undefined } : undefined;
+      return run(false, override);
     },
     'hdcommunity_admin_blog_online': (a, ctx) =>
-      callAdmin(ctx.sessionId, 'POST', '/agent/admin/blog/online', {
-        body: { id: a.id, online: a.online },
-        token: a.token,
-      }),
+      runWithConfirm(
+        ctx,
+        'hdcommunity_admin_blog_online',
+        a,
+        () => blogPreview(ctx, a, a.online === 1 ? '上线博客' : '下线博客'),
+        () =>
+          callAdmin(ctx.sessionId, 'POST', '/agent/admin/blog/online', {
+            body: { id: a.id, online: a.online },
+            token: a.token,
+          }),
+      ),
     'hdcommunity_admin_blog_top': (a, ctx) =>
-      callAdmin(ctx.sessionId, 'POST', '/agent/admin/blog/top', {
-        body: { id: a.id, top: a.top },
-        token: a.token,
-      }),
+      runWithConfirm(
+        ctx,
+        'hdcommunity_admin_blog_top',
+        a,
+        () => blogPreview(ctx, a, a.top === 1 ? '置顶博客' : '取消置顶'),
+        () =>
+          callAdmin(ctx.sessionId, 'POST', '/agent/admin/blog/top', {
+            body: { id: a.id, top: a.top },
+            token: a.token,
+          }),
+      ),
     'hdcommunity_admin_blog_records': (a, ctx) =>
       callAdmin(ctx.sessionId, 'GET', `/agent/admin/blog/${encodeURIComponent(a.id)}/records`, {
         query: { page_no: a.page_no, page_size: a.page_size },
@@ -561,16 +642,45 @@ export const ADMIN_TOOLS = {
       return decoratePendingPage(r, a.status);
     },
     'hdcommunity_admin_comment_review': (a, ctx) =>
-      callAdmin(ctx.sessionId, 'POST', '/agent/admin/comment/review', {
-        body: { id: a.id, action: a.action, remark: a.remark },
-        token: a.token,
-      }),
-    'hdcommunity_admin_comment_review_batch': (a, ctx) => reviewBatch('comment', a, ctx),
+      runWithConfirm(
+        ctx,
+        'hdcommunity_admin_comment_review',
+        a,
+        async () => ({ action: `审核评论（${a.action}）`, id: a.id, remark: a.remark }),
+        () =>
+          callAdmin(ctx.sessionId, 'POST', '/agent/admin/comment/review', {
+            body: { id: a.id, action: a.action, remark: a.remark },
+            token: a.token,
+          }),
+      ),
+    'hdcommunity_admin_comment_review_batch': async (a, ctx) => {
+      const tool = 'hdcommunity_admin_comment_review_batch';
+      const run = (dry, override) => reviewBatch('comment', { ...a, ...override, dry_run: dry }, ctx);
+      if (a.dry_run !== false) {
+        const r = await run(true);
+        if (!r || r.ok === false) return r;
+        // Freeze the exact target set at preview time (filter re-evaluation could add items).
+        const ids = (Array.isArray(r.data?.items) ? r.data.items : []).map((it) => Number(it.id)).filter(Number.isFinite);
+        if (!ids.length) return r;
+        return ok(issueConfirm(ctx?.sessionId, tool, a, r.data ?? r, { ids }));
+      }
+      const { error, meta } = consumeConfirmMeta(ctx?.sessionId, tool, a, a.preview_confirm_token);
+      if (error) return fail(CODES.PARAM_ERROR, error);
+      const override = meta && Array.isArray(meta.ids) && meta.ids.length ? { ids: meta.ids, filter: undefined } : undefined;
+      return run(false, override);
+    },
     'hdcommunity_admin_comment_online': (a, ctx) =>
-      callAdmin(ctx.sessionId, 'POST', '/agent/admin/comment/online', {
-        body: { id: a.id, online: a.online },
-        token: a.token,
-      }),
+      runWithConfirm(
+        ctx,
+        'hdcommunity_admin_comment_online',
+        a,
+        async () => ({ action: a.online === 1 ? '上线评论' : '下线评论', id: a.id }),
+        () =>
+          callAdmin(ctx.sessionId, 'POST', '/agent/admin/comment/online', {
+            body: { id: a.id, online: a.online },
+            token: a.token,
+          }),
+      ),
     'hdcommunity_admin_stats': (a, ctx) =>
       callAdmin(ctx.sessionId, 'GET', '/agent/admin/stats', { token: a.token }),
   },

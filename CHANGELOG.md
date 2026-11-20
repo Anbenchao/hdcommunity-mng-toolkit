@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.8.0
+
+### Added — 成长中心能力回归 main
+- 恢复成长中心管理台 `hdgrow_admin_*` 与业务侧 `hdgrow_*`，并将默认环境按分支固定：`main`=现网、`develop`=测试（不要混用）。
+- 新增 `hdgrow_admin_env`：返回当前 `test/prod/mixed/custom` 与两个 base，写操作预览统一带 `env`。
+
+### Added — 成长管理台 P1/P2（develop 已验证，随本次回到 main）
+- 变更单 `change_cancel` / `change_archive`。
+- 积分补发 `reissue_create|_page|_get|_approve|_issue`（approve/issue 需 approver/admin，审核人不得等于提交人；`reissue_issue` 执行需 `confirm:true`）。
+- 首个自然人变更申请 `natural_person_page|_get|_approve|_reject`（approver/admin，驳回原因必填）。
+- 用户黑名单 `user_block`（原因 ≤512 字）/ `user_unblock`。
+- 任务分类 `task_categories`（建任务取 `category_id`）。
+- 审计筛选 `keyword`、用户 `blocked`、变更单 `include_archived`。
+
+### Changed — 写操作两步确认（防误操作）
+- 所有新建/修改/删除工具默认 `dry_run=true`：只返回 `preview` + `env` + 一次性 `preview_confirm_token`，用户回复[确认]后以相同参数 + `dry_run:false` + 令牌执行。
+- `change_create` 预览走后端 `POST /manage/change-request/preview`（不落库、不产生草案）；令牌 TTL 5 分钟、一次性、绑定参数。
+- 批量审核预览时冻结目标 id，执行严格按预览集合处理。
+- 覆盖范围：变更单 create/commit/approve/apply/revert/cancel/archive、补发 create/approve/issue、首个自然人 approve/reject、用户 block/unblock、博客审核/上下线/置顶、评论审核/上下线（含批量）。
+
 ## 0.7.0
 
 ### Features

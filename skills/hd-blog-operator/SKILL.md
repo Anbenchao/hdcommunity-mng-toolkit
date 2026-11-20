@@ -17,6 +17,19 @@ Admin-side workflows over MCP: log in with the **internal account** (not AK/SK),
 - Admin permission (role→tool whitelist on the backend). If a tool returns `FORBIDDEN`, the account lacks the permission.
 - Optional but recommended: set `HDCOMMUNITY_ADMIN_USER` / `HDCOMMUNITY_ADMIN_PASS` so expired sessions (401) are re-logged-in automatically; otherwise a 401 surfaces as `NEED_LOGIN` and you must call `hdcommunity_admin_login` again.
 
+## 两步确认（所有写操作，强制）
+
+先调用 `hdgrow_admin_env`（同一 MCP 包）确认当前指向（`test` / `prod` / `mixed` / `custom`）；每个预览也会带 `env`，**若为 `prod`，展示时必须明确标注“现网”**。
+
+All write tools (`blog_review`, `blog_review_batch`, `blog_online`, `blog_top`, `comment_review`, `comment_review_batch`, `comment_online`) default to `dry_run=true`:
+**only a preview + one-time `preview_confirm_token` is returned, nothing is written**.
+
+1. Call the tool without `dry_run` (or `dry_run:true`) → get `preview` + `preview_confirm_token`
+2. **Show the full preview to the user and wait for an explicit [确认] reply**
+3. Re-call with the **identical parameters** + `dry_run:false` + `preview_confirm_token` to execute
+
+`preview_confirm_token` is valid for 5 minutes, one-time, and bound to the arguments; any parameter change requires a new preview.
+
 ## Workflow
 
 | Step | Tool | Notes |
@@ -25,7 +38,7 @@ Admin-side workflows over MCP: log in with the **internal account** (not AK/SK),
 | 2. Pending blogs | `hdcommunity_admin_blog_page` | `status=1` = pending; **oldest-first** with `pending_duration` per item; content summarized to `content_preview`/`content_length` |
 | 2b. Inspect | `hdcommunity_admin_blog_detail` | `{ id, include_content? }` — full content (controllable), review history, `risk_flags` (script/iframe/style detection); degraded composition is flagged with a note when backend detail API is not ready |
 | 3. Review | `hdcommunity_admin_blog_review` | `action`: `approve` / `reject` (+`remark`); pass the blog's `title`/`content` so a local risk check runs automatically |
-| 3b. Batch | `hdcommunity_admin_blog_review_batch` | by `ids:[]` **or** `filter:{status, keyword, author}`; **always `dry_run:true` first** to preview the affected `{id, summary}` list, then execute; the receipt returns per-id success/failure with one automatic retry per failed item; pass `items:[{id,title,content}]` for per-blog risk checks |
+| 3b. Batch | `hdcommunity_admin_blog_review_batch` | by `ids:[]` **or** `filter:{status, keyword, author}`; preview by default, then confirm-token + `dry_run:false` to execute; the receipt returns per-id success/failure with one automatic retry per failed item; pass `items:[{id,title,content}]` for per-blog risk checks |
 | 4. Online / Top | `hdcommunity_admin_blog_online` / `hdcommunity_admin_blog_top` | approved only |
 | 5. Comments | `hdcommunity_admin_comment_page` → `..._comment_review(_batch)` | pending list also oldest-first; batch supports filter + dry_run + per-id receipt |
 | 6. Stats | `hdcommunity_admin_stats` | workbench counters |
@@ -44,7 +57,7 @@ Every review response carries a `risk_check` report (`risk_level`, `categories`,
 
 ## Rules
 
-- **Review is a write action**: always summarize what will be approved/rejected and get user confirmation before calling review/online/top. For batches, run `dry_run:true` and show the preview list to the user first.
+- **Review is a write action**: the two-step gate is mandatory — preview, show the user, wait for [确认], then execute with `preview_confirm_token`. For batches, the preview lists the affected items.
 - Work the queue oldest-first: start from the top of the `status=1` page (longest pending first) and check `pending_duration`.
 - Never fabricate review results; report exactly what the tools return, including per-id failures from batch receipts.
 - If a tool returns `NEED_LOGIN`/`UNAUTHORIZED`, re-run `hdcommunity_admin_login` (or configure `HDCOMMUNITY_ADMIN_USER/PASS` for automatic relogin).
