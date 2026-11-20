@@ -10,6 +10,7 @@
 
 import { callGrowAdmin, callGrowShow } from './http-client.mjs';
 import { GROW_ADMIN, GROW_SHOW } from './grow-endpoints.mjs';
+import { envInfo } from '../config.mjs';
 import { loginBoth, logoutBoth } from './admin-session.mjs';
 import { ok, fail, CODES } from '../errors.mjs';
 import { CONFIRM_PROPS, issueConfirm, consumeConfirm } from './confirm-gate.mjs';
@@ -322,6 +323,11 @@ export const GROW_ADMIN_TOOLS = {
     },
 
     // ---- read-only config queries ----
+    {
+      name: 'hdgrow_admin_env',
+      description: 'Show which environment this toolkit points at (test / prod / mixed / custom) and the configured bases. 查看当前指向的环境。',
+      inputSchema: { type: 'object', properties: {} },
+    },
     {
       name: 'hdgrow_admin_task_categories',
       description: 'List task categories (id/name/type) for task creation. 任务分类列表。',
@@ -704,6 +710,7 @@ if (!r.ok) {
         () => callGrowAdmin(ctx?.sessionId, 'POST', GROW_ADMIN.userUnblock(a.id), { token: a.token }),
       ),
 
+    'hdgrow_admin_env': () => ok(envInfo()),
     'hdgrow_admin_task_categories': () => callGrowShow('GET', GROW_SHOW.taskCategories),
 
     'hdgrow_admin_task_page': (a, ctx) =>

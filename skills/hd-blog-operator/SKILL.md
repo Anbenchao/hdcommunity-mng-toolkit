@@ -19,6 +19,8 @@ Admin-side workflows over MCP: log in with the **internal account** (not AK/SK),
 
 ## 两步确认（所有写操作，强制）
 
+先调用 `hdgrow_admin_env`（同一 MCP 包）确认当前指向（`test` / `prod` / `mixed` / `custom`）；每个预览也会带 `env`，**若为 `prod`，展示时必须明确标注“现网”**。
+
 All write tools (`blog_review`, `blog_review_batch`, `blog_online`, `blog_top`, `comment_review`, `comment_review_batch`, `comment_online`) default to `dry_run=true`:
 **only a preview + one-time `preview_confirm_token` is returned, nothing is written**.
 

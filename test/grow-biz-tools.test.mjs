@@ -6,6 +6,9 @@ import assert from 'node:assert/strict';
 
 import { callTool, TOOL_DEFINITIONS } from '../src/tools/index.mjs';
 
+// Never let guard tests hit a real environment (develop defaults to the test gateway).
+process.env.HDGROW_BASE = 'http://127.0.0.1:9/api/v1/hdgrowservice';
+
 const BIZ_NAMES = [
   'hdgrow_points_query',
   'hdgrow_server_tasks',
@@ -174,13 +177,12 @@ test('guard: points_add previews by default (MID)', async () => {
   assert.equal(r.data.risk_level, 'MID');
 });
 
-test('grow business: missing HDGROW_BASE fails fast', async () => {
+test('grow business: HDGROW_BASE falls back to the test gateway when unset', async () => {
+  const { growBase } = await import('../src/config.mjs');
   const prev = process.env.HDGROW_BASE;
   delete process.env.HDGROW_BASE;
   try {
-    const r = await callTool('hdgrow_points_query', { domain_id: 'acc-1' });
-    assert.equal(r.ok, false);
-    assert.equal(r.error.code, 'CONFIG_MISSING');
+    assert.equal(growBase(), 'https://opctest-dataset.developer.huaweicloud.com/api/v1/hdgrowservice');
   } finally {
     if (prev === undefined) delete process.env.HDGROW_BASE;
     else process.env.HDGROW_BASE = prev;

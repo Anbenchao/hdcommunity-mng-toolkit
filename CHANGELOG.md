@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Changed — 环境默认与标识
+- `develop` 默认测试：`HDCOMMUNITY_BASE`=opentest-dataset、`HDGROW_BASE`=opctest-dataset（`main` 保持现网默认，禁止把测试配置带进 main）。
+- 新增 `hdgrow_admin_env`：返回 `test/prod/mixed/custom` 与两个 base；所有写操作预览统一带 `env`。
+
 ### Changed — 写操作两步确认（防误操作）
 - 所有新建/修改/删除工具默认 `dry_run=true`：只返回 `preview` + 一次性 `preview_confirm_token`，用户回复[确认]后以相同参数 + `dry_run:false` + 令牌执行。
 - `change_create` 预览走后端 `POST /manage/change-request/preview`（不落库、不产生草案）；令牌 TTL 5 分钟、一次性、绑定参数。

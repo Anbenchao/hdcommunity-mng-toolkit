@@ -19,6 +19,12 @@ npx --yes hdcommunity-mng-toolkit uninstall --target opencode
 
 > 让 Agent 帮你装：`请运行 npx --yes hdcommunity-mng-toolkit install --target opencode，status 确认，并提醒我重启会话。`
 
+## 环境默认（本分支 = 测试）
+
+- `develop`：`HDCOMMUNITY_BASE` / `HDGROW_BASE` 默认指向测试（`opentest-dataset` / `opctest-dataset`）。
+- `main`：默认指向现网（`open-dataset` / `grow-dataset`）；不要把测试配置带进 main。
+- 不确定时调 `hdgrow_admin_env`；所有写操作预览都会带 `env`。
+
 ## 认证
 
 | 面 | 工具前缀 | 鉴权 |
@@ -37,8 +43,8 @@ npx --yes hdcommunity-mng-toolkit uninstall --target opencode
 ### 博客管理台 `hdcommunity_admin_*`
 登录/注销、`blog_page`/`blog_detail`/`blog_review`/`blog_review_batch`、`blog_online`/`blog_top`/`blog_records`、`comment_page`/`comment_review`/`comment_review_batch`/`comment_online`、`stats`。
 
-### 成长中心管理台 `hdgrow_admin_*`（34）
-登录/注销；变更单 `change_create|commit|approve|apply|revert|cancel|archive|get|page`；`task_page|_get`、`task_categories`、`prize_page|_get`、`whitelist_page`；记录审计 `record_points|_exchange|_issue|_job`、`user_page`、`user_block`/`user_unblock`；积分补发 `reissue_create|_page|_get|_approve|_issue`；首个自然人 `natural_person_page|_get|_approve|_reject`；`stats`。
+### 成长中心管理台 `hdgrow_admin_*`（35）
+登录/注销；环境自检 `env`；变更单 `change_create|commit|approve|apply|revert|cancel|archive|get|page`；`task_page|_get`、`task_categories`、`prize_page|_get`、`whitelist_page`；记录审计 `record_points|_exchange|_issue|_job`、`user_page`、`user_block`/`user_unblock`；积分补发 `reissue_create|_page|_get|_approve|_issue`；首个自然人 `natural_person_page|_get|_approve|_reject`；`stats`。
 
 ### 成长中心业务侧 `hdgrow_*`（6，AK/SK）
 查询：`points_query`（查积分）、`server_tasks`（带个人完成状态）、`server_prizes`；
@@ -58,8 +64,8 @@ npx --yes hdcommunity-mng-toolkit uninstall --target opencode
 
 | 变量 | 默认 | 说明 |
 |---|---|---|
-| `HDCOMMUNITY_BASE` | （见 config） | 博客服务地址（用户面+管理面合并单服务） |
-| `HDGROW_BASE` | **必填（无默认）** | 成长服务地址，如 `https://<网关>/api/v1/hdgrowservice`；未配置 → `CONFIG_MISSING` |
+| `HDCOMMUNITY_BASE` | develop=测试 `opentest-dataset`；main=现网 `open-dataset` | 博客服务地址（用户面+管理面合并单服务） |
+| `HDGROW_BASE` | develop=测试 `opctest-dataset`；main=现网 `grow-dataset` | 成长服务地址，形如 `https://<网关>/api/v1/hdgrowservice` |
 | `HDCOMMUNITY_ADMIN_USER` / `HDCOMMUNITY_ADMIN_PASS` | 空 | 管理台账号（401 自动重登用） |
 | `HDGROW_RISK_FACE_AMOUNT_MAX` / `HDGROW_RISK_QUANTITY_MAX` | `100` / `10` | 涉钱高风险阈值（业务侧写入） |
 | `HDCOMMUNITY_CONFIRM_TTL_MS` | `300000`（5 分钟） | 写操作预览令牌 `preview_confirm_token` 的有效期 |
