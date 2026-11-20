@@ -59,9 +59,10 @@ export function envInfo() {
   const growProd = growHost === 'grow-dataset.developer.huaweicloud.com';
   const testHits = Number(blogTest) + Number(growTest);
   const prodHits = Number(blogProd) + Number(growProd);
-  let env = 'custom';
-  if (testHits > 0 && prodHits === 0) env = 'test';
-  else if (prodHits > 0 && testHits === 0) env = 'prod';
-  else if (testHits > 0 && prodHits > 0) env = 'mixed';
+  const customHits = 2 - testHits - prodHits;
+  let env = 'mixed';
+  if (testHits === 2) env = 'test';
+  else if (prodHits === 2) env = 'prod';
+  else if (customHits === 2) env = 'custom';
   return { env, blog_base: blogBase, grow_base: growBaseUrl };
 }
