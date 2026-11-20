@@ -17,7 +17,7 @@
 import { accessSync, constants, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { BACKEND_BASE } from './config.mjs';
+import { BACKEND_BASE, growBase } from './config.mjs';
 
 export const DSH_DEFAULT_PROFILE = 'web';
 export const DSH_PATCH_ID = 'mcp-hdcommunity';
@@ -57,6 +57,7 @@ export function renderDshPatchEntry(base = dshBackendBase()) {
     "        args: ['-y', '-p', 'hdcommunity-mng-toolkit', 'hdcommunity-mng-toolkit-mcp']",
     '        env:',
     `          HDCOMMUNITY_BASE: ${yamlSingleQuoted(base)}`,
+    `          HDGROW_BASE: ${yamlSingleQuoted(growBase())}`,
     '',
     '',
   ].join('\n');
